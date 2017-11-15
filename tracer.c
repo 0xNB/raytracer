@@ -29,7 +29,7 @@ struct Image{
     const int width, height;
     struct Vec **pixels;
     struct Sphere *spheres;
-}
+};
 
 struct Image *img;
 
@@ -40,7 +40,7 @@ struct Vec * compute_direction(Vec start, Vec end){
     returnVec->y = end.y - start.y;
     returnVec->z = end.z - start.z;
     return returnVec;
-}
+};
 
 void init_image(struct Image *img){
     for(int i = 0; i < img->width; i++){
