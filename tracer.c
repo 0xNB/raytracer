@@ -27,6 +27,7 @@ struct Sphere{
 };
 
 struct Vec *cam;
+struct Vec *light;
 
 struct Image{
     int width, height;
@@ -82,6 +83,14 @@ struct Vec * vec_difference(struct Vec v2, struct Vec v1){
 	return return_vec;
 }
 
+struct Vec * vec_add(struct Vec v1, struct Vec v2){
+       struct Vec *return_vec = malloc(sizeof(struct Vec));
+       return_vec->x = v1.x + v2.x;
+       return_vec->y = v1.y + v2.y;
+       return_vec->z = v1.z + v2.z;
+       return return_vec;
+}
+
 double vec_norm(struct Vec vec){
          return sqrt(pow(vec.x,2) + pow(vec.y,2) + pow(vec.z,2));
 }
@@ -99,19 +108,59 @@ double sphere_line_intersection(struct Sphere sphere, struct Vec vec, struct Vec
       return result;
 }
 
+double vec_distance(struct Vec v1, struct Vec v2){
+     struct Vec *diff = vec_difference(v1,v2);
+     double distance = vec_norm(*diff);
+     free(diff);
+     return distance;
+}
+
 void render_image(){
     clear();
     for(int i = 0; i < img->width; i++){
        for(int j = 0; j < img->height; j++){
            struct Vec *primary_dir = compute_direction(*cam, img->pixels[i][j]);
-	   struct Vec p_hit;
+	   struct Vec *p_hit1, *p_hit2;
 	   struct Vec normal_hit;
 	   double min_dist = MIN_DIST;
 
            for(int k = 0; k < NUM_SPHERES; ++k){
-                 if(sphere_line_intersection(*(img->spheres + k), *primary_dir, *cam) >= 0){
-                     img->pixels[i][j].color = 1;
-		     mvprintw(j,i,".");
+		 double sol = sphere_line_intersection(*(img->spheres + k), *primary_dir, *cam);
+		 vec_multiply(primary_dir, 1 / vec_norm(*primary_dir)); 
+                 if(sol >= 0){
+	             struct Vec *diff_p1 = vec_difference(*cam, (img->spheres+k)->center);
+	             double d = -(vec_product(*primary_dir, *diff_p1)) + sqrt(sol);
+		     double d2 = -(vec_product(*primary_dir, *diff_p1)) - sqrt(sol);
+	             struct Vec *prim_dir_copy = malloc(sizeof(struct Vec));
+		     *prim_dir_copy = *primary_dir;
+		     vec_multiply(primary_dir, d);
+		     vec_multiply(prim_dir_copy, d2);
+                     p_hit1 = vec_add(*cam, *primary_dir);
+		     p_hit2 = vec_add(*cam, *prim_dir_copy);
+		     double distance = vec_distance(*cam, *p_hit1);
+		     struct Vec *shadowRay = vec_difference(*light, *p_hit1);;
+		     int isShadow = 0;
+		     double solution2 = sphere_line_intersection(*(img->spheres+k), *shadowRay, *p_hit1); 
+		     if(solution2 >= 0){
+			 struct Vec *shadow_p = vec_difference(*p_hit1, (img->spheres+k)->center);
+			 vec_multiply(shadowRay, 1/vec_norm(*shadowRay));
+			 double shadow_d = -(vec_product(*shadowRay, *shadow_p)) + sqrt(solution2);
+			 if(shadow_d < 0.5){
+                            isShadow = 1;
+			 }
+	             } 
+		     if(isShadow == 1){
+                         mvprintw(j,i,":");
+		     }
+		     else{
+                      img->pixels[i][j].color = 1;
+		      mvprintw(j,i,".");
+		     }
+		     free(diff_p1);
+		     free(shadowRay);
+		     free(prim_dir_copy);
+	             free(p_hit1);
+	              free(p_hit2);
 		 }
 		 else{
                      img->pixels[i][j].color = 0;
@@ -129,6 +178,7 @@ void free_everything(){
     free(img->pixels);
     free(img);
     free(cam);
+    free(light);
 }
 
 int main(){
@@ -152,10 +202,17 @@ int main(){
 	 img->spheres->center = *center_vec;
 	 img->spheres->radius = 5;
 	 cam = create_vec(0,0,-10); 
+	 light = create_vec(0,15,15);
 	 init_image();
-	 for(int i = 0; i < 100; i ++){
+	 for(int i = 0; i < 20; i++){
             img->spheres->center.z++;
 	    render_image();
+	 }
+	 img->spheres->center.z = 20;
+	 img->spheres->center.x = -15;
+	 for(int i = 0; i < 30; i++){
+             img->spheres->center.x++;
+	     render_image();
 	 }
 	 free(center_vec);
 	 free_everything();
